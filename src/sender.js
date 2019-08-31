@@ -12,6 +12,7 @@ class Sender {
     schedule = null,
     mongoOptions = {
       useNewUrlParser: true,
+      useUnifiedTopology: true,
     },
   ) {
     this.botToken = botToken
