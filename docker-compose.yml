@@ -1,0 +1,44 @@
+version: '2'
+services:
+  bot:
+    build: .
+    restart: always
+    user: node
+    working_dir: /home/node/app
+    env_file: .env
+    volumes:
+      - ./logs:/home/node/app/logs
+      - ./src:/home/node/app/src
+    command: "npm start"
+    links:
+      - mongo
+    depends_on:
+      - mongo
+
+  sender:
+    build: .
+    restart: always
+    user: node
+    working_dir: /home/node/app
+    env_file: .env
+    volumes:
+      - ./logs:/home/node/app/logs
+      - ./src:/home/node/app/src
+    command: "npm run sender"
+    links:
+      - mongo
+    depends_on:
+      - mongo
+
+  mongo:
+    image: mongo:latest
+    restart: always
+    env_file: .env
+    expose:
+      - "27017"
+    volumes:
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js
+      - datavolume:/data/db
+
+volumes:
+  datavolume:

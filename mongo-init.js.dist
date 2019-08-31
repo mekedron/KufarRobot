@@ -1,0 +1,12 @@
+db.createUser(
+  {
+    user: "bot",
+    pwd: "bot_password",
+    roles:[
+      {
+        role: "readWrite",
+        db: "KufarRobot"
+      }
+    ]
+  }
+);

@@ -1,0 +1,34 @@
+{
+  "name": "kufar-robot",
+  "version": "1.0.0",
+  "description": "Kufar Robot",
+  "main": "src/index.js",
+  "dependencies": {
+    "mongodb": "^3.2.4",
+    "node-cron": "^2.0.3",
+    "telegraf": "^3.32.0",
+    "telegraf-session-mongodb": "^1.1.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/index.js",
+    "sender": "node src/sender.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/durexlovesex/KufarRobot.git"
+  },
+  "keywords": [
+    "nodejs",
+    "kufar",
+    "telegram",
+    "bot"
+  ],
+  "author": "Nikita Rabykin",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/durexlovesex/KufarRobot/issues"
+  },
+  "homepage": "https://github.com/durexlovesex/KufarRobot#readme"
+}
