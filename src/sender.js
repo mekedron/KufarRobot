@@ -2,6 +2,7 @@ const Telegraf = require('telegraf')
 const https = require('https')
 const zlib = require('zlib');
 const { MongoClient } = require('mongodb')
+const ParametersMap  = require('./parameters-map')
 
 class Sender {
   constructor (
@@ -176,16 +177,18 @@ class Sender {
 
     const paramsString = url.slice(url.indexOf('?') + 1)
     const searchParams = new URLSearchParams(paramsString)
-    const paramsToDelete = [
-      'center',
-      'zoom',
-      'prc_min',
-      'prc_max'
-    ]
+    const paramsToKeep = ['size', 'sort', 'cursor'].concat(Object.keys(ParametersMap))
+    const paramsToDelete = []
 
-    searchParams.set('size', 200);
+    for(var key of searchParams.keys()) {
+      if (paramsToKeep.indexOf(key) < 0) {
+        paramsToDelete.push(key)
+      }
+    }
 
     paramsToDelete.forEach(param => searchParams.delete(param))
+
+    searchParams.set('size', 200);
 
     try {
       // @todo support pagination
