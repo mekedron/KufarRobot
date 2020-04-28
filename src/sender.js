@@ -192,7 +192,7 @@ class Sender {
 
     paramsToDelete.forEach(param => searchParams.delete(param))
 
-    searchParams.set('size', 200)
+    searchParams.set('size', 30)
 
     try {
       // @todo support pagination
