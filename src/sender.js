@@ -1,8 +1,8 @@
 const Telegraf = require('telegraf')
 const https = require('https')
-const zlib = require('zlib');
+const zlib = require('zlib')
 const { MongoClient } = require('mongodb')
-const ParametersMap  = require('./parameters-map')
+const ParametersMapResolver  = require('./parameters-map-resolver')
 
 class Sender {
   constructor (
@@ -119,13 +119,13 @@ class Sender {
 
     message += `👤 ${apartment.name}` + (apartment.company_ad ? `⚠️ Агент\n` : `\n`)
     message += !apartment.phone ? '📵 Телефон не указан\n' :
-      apartment.phone.split(',').map(phone => {
+      apartment.phone.split(',\n').map(phone => {
         var formattedPhone = phone.replace(
           /(375)(29|25|33|44)(\d{3})(\d{2})(\d{2})/,
           '+$1 ($2) $3-$4-$5'
         )
 
-        return `📱 ${formattedPhone}\n`
+        return `📱 ${formattedPhone}`
       })
 
     await this.bot.telegram.sendVenue(
@@ -139,20 +139,28 @@ class Sender {
       }
     );
 
-    for (let i = 0; i < Math.ceil(apartment.images.length / 10); i++) {
-      let images = apartment.images.slice(i * 10, i * 10 + 10)
-      await this.bot.telegram.sendMediaGroup(
-        chatId,
-        images.map(img => {
-          return {
-            type: 'photo',
-            media: 'https://cache1.kufar.by/gallery/' + img.id.slice(0, 2) + '/' + img.id + '.jpg'
+    const stepSize = 10
+    for (let i = 0; i < Math.ceil(apartment.images.length / stepSize); i++) {
+      let images = apartment.images.slice(i * stepSize, i * stepSize + stepSize)
+      try {
+        await this.bot.telegram.sendMediaGroup(
+          chatId,
+          images.map(img => {
+            const type = img.id.slice(0, 2)
+            const name = img.id + '.jpg'
+            return {
+              type: 'photo',
+              media: 'https://yams.kufar.by/api/v1/kufar-ads/images/' + type +
+                '/' + name + '?rule=gallery'
+            }
+          }),
+          {
+            disable_notification: true
           }
-        }),
-        {
-          disable_notification: true
-        }
-      )
+        )
+      } catch (e) {
+        console.log('We cannot sent the image group for aparment:', apartment)
+      }
     }
 
     await this.bot.telegram.sendMessage(
@@ -177,7 +185,8 @@ class Sender {
 
     const paramsString = url.slice(url.indexOf('?') + 1)
     const searchParams = new URLSearchParams(paramsString)
-    const paramsToKeep = ['size', 'sort', 'cursor'].concat(Object.keys(ParametersMap))
+    const paramsMap = await ParametersMapResolver(url)
+    const paramsToKeep = ['size', 'sort', 'cursor'].concat(Object.keys(paramsMap))
     const paramsToDelete = []
 
     for(var key of searchParams.keys()) {
