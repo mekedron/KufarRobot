@@ -90,7 +90,13 @@ class Sender {
         item.has_sent_to[chatId] = 1
       }
 
-      this.sendItem(chatId, item).catch(e => {
+      this.sendItem(chatId, item)
+      .then(() => {
+        this.items.findOneAndUpdate({
+          kufar_id: item.kufar_id,
+        }, { $set: item }, { upsert: true })
+      })
+      .catch(e => {
         if (parseInt(e.code, 10) === 403) {
           this.unsubscribe(user._id)
         } else {
@@ -102,9 +108,6 @@ class Sender {
           )
         }
       })
-      await this.items.findOneAndUpdate({
-        kufar_id: item.kufar_id,
-      }, { $set: item }, { upsert: true })
     }
   }
 
@@ -126,7 +129,7 @@ class Sender {
     message += `🌟 ${createdAt}\n\n`
 
     message += `👤 ${item.name}` +
-      (item.company_ad ? `⚠️ Агент\n` : `\n`)
+      (item.company_ad ? ` ⚠️ Агент\n` : `\n`)
     message += !item.phone ? '📵 Телефон не указан\n' :
       item.phone.split(',\n').map(phone => {
         var formattedPhone = phone.replace(
