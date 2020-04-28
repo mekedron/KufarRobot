@@ -90,19 +90,21 @@ class Sender {
         item.has_sent_to[chatId] = 1
       }
 
-      try {
-        await this.sendItem(chatId, item)
-        await this.items.findOneAndUpdate({
-          kufar_id: item.kufar_id,
-        }, { $set: item }, { upsert: true })
-      } catch (e) {
-        console.error(
-          'Can\'t send the item to the user = ' +
-          user.id + ', item = ' +
-          JSON.stringify(item),
-          e,
-        )
-      }
+      this.sendItem(chatId, item).catch(e => {
+        if (parseInt(e.code, 10) === 403) {
+          this.unsubscribe(user._id)
+        } else {
+          console.error(
+            'Can\'t send the item to the user: \'' +
+            user.key + '\', item: \'' +
+            JSON.stringify(item) + '\'\n' +
+            '    Reason: ' + e.message,
+          )
+        }
+      })
+      await this.items.findOneAndUpdate({
+        kufar_id: item.kufar_id,
+      }, { $set: item }, { upsert: true })
     }
   }
 
@@ -249,6 +251,13 @@ class Sender {
           reject(new Error(e))
         })
       }).on('error', err => reject(new Error(err))),
+    )
+  }
+
+  async unsubscribe (userId) {
+    return this.sessions.findOneAndUpdate(
+      { _id: userId },
+      { $set: { data: { url: null } } },
     )
   }
 }
