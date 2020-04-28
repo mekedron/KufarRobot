@@ -25,7 +25,7 @@ bot.command('stop', (ctx) => {
   )
 })
 
-bot.hears(/https:\/\/re\.kufar\.by\/listings/ig, (ctx) => {
+bot.hears(/https:\/\/(\w+)\.kufar\.by\/listings/ig, (ctx) => {
   ctx.session.url = ctx.message.text
 
   return ctx.reply('Thanks, the link has been updated.')

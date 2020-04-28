@@ -1,4 +1,5 @@
 const { getCached, setCached } = require('./cache-storage')
+const defaultParamsMap = require('./default-parameters-map')
 const https = require('https')
 const zlib = require('zlib')
 
@@ -55,7 +56,7 @@ async function fetchPage (url) {
   )
 }
 
-function extractParametersMap (pageHtml) {
+function extractAppConfig (pageHtml) {
   if (!pageHtml) {
     return false
   }
@@ -73,7 +74,7 @@ function extractParametersMap (pageHtml) {
 
   result = JSON.parse(result)
 
-  return result.props.initialState.filters.parametersMap;
+  return result;
 }
 
 function buildFiltersMaps (appConfig) {
@@ -93,6 +94,16 @@ function buildFiltersMaps (appConfig) {
   }, [])
 }
 
+function extractParamsMap (appConfig) {
+  let builtMap = appConfig.props.initialState.filters.parametersMap
+
+  if (builtMap) {
+    return builtMap
+  }
+
+  return buildFiltersMaps(appConfig)
+}
+
 async function resolve (url) {
   let preparedUrl = prepareUrl(url)
 
@@ -103,15 +114,17 @@ async function resolve (url) {
   }
 
   const pageHtml = await fetchPage(url)
+  const appConfig = extractAppConfig(pageHtml)
 
-  result = extractParametersMap(pageHtml)
+  result = extractParamsMap(appConfig)
 
-  if (!result) {
-    throw new Error(
+  if (!appConfig || !result) {
+    console.error(
       'We cannot extract app config from the page with url and content: ',
       url,
       pageHtml,
     )
+    return defaultParamsMap
   }
 
   await setCached(result)

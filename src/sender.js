@@ -2,14 +2,14 @@ const Telegraf = require('telegraf')
 const https = require('https')
 const zlib = require('zlib')
 const { MongoClient } = require('mongodb')
-const ParametersMapResolver  = require('./parameters-map-resolver')
+const ParametersMapResolver = require('./parameters-map-resolver')
 
 class Sender {
   constructor (
     botToken,
     mongoUri = 'mongodb://localhost:27017',
     sessionsCollectionName = 'session',
-    apartmentsCollectionName = 'apartment',
+    itemsCollectionName = 'item',
     schedule = null,
     mongoOptions = {
       useNewUrlParser: true,
@@ -19,7 +19,7 @@ class Sender {
     this.botToken = botToken
     this.mongoUri = mongoUri
     this.sessionsCollectionName = sessionsCollectionName
-    this.apartmentsCollectionName = apartmentsCollectionName
+    this.itemsCollectionName = itemsCollectionName
     this.schedule = schedule
     this.mongoOptions = mongoOptions
 
@@ -34,9 +34,9 @@ class Sender {
     this.client = await MongoClient.connect(this.mongoUri, this.mongoOptions)
     this.db = this.client.db()
     this.sessions = this.db.collection(this.sessionsCollectionName)
-    this.apartments = this.db.collection(this.apartmentsCollectionName)
+    this.items = this.db.collection(this.itemsCollectionName)
 
-    await this.apartments.createIndex({ kufar_id: 1 })
+    await this.items.createIndex({ kufar_id: 1 })
 
     this.bot = new Telegraf(this.botToken)
 
@@ -65,131 +65,121 @@ class Sender {
     }
 
     let chatId = user.key.split(':')[0]
-    let apartments = await this.fetchApartments(user.data.url)
+    let items = await this.fetchItems(user.data.url)
 
-    if (!apartments.length) {
+    if (!items.length) {
       return
     }
 
-    for (var i = 0; i < apartments.length; i++) {
-      let apartment = apartments[i]
-      apartment.kufar_id = apartment.ad_id
-      delete apartment.ad_id
+    for (var i = 0; i < items.length; i++) {
+      let item = items[i]
+      item.kufar_id = item.ad_id
+      delete item.ad_id
 
-      let existingApartment = await this.apartments.findOne({
-        kufar_id: apartment.kufar_id,
+      let existingItem = await this.items.findOne({
+        kufar_id: item.kufar_id,
       })
 
-      apartment.has_sent_to = existingApartment
-        ? existingApartment.has_sent_to
+      item.has_sent_to = existingItem
+        ? existingItem.has_sent_to
         : {}
 
-      if (apartment.has_sent_to[chatId]) {
+      if (item.has_sent_to[chatId]) {
         continue
       } else {
-        apartment.has_sent_to[chatId] = 1
+        item.has_sent_to[chatId] = 1
       }
 
       try {
-        await this.sendApartment(chatId, apartment)
-        await this.apartments.findOneAndUpdate({
-          kufar_id: apartment.kufar_id,
-        }, { $set: apartment }, { upsert: true })
+        await this.sendItem(chatId, item)
+        await this.items.findOneAndUpdate({
+          kufar_id: item.kufar_id,
+        }, { $set: item }, { upsert: true })
       } catch (e) {
         console.error(
-          'Can\'t send the apartment to the user = ' +
-          user.id + ', apartment = ' +
-          JSON.stringify(apartment),
+          'Can\'t send the item to the user = ' +
+          user.id + ', item = ' +
+          JSON.stringify(item),
           e,
         )
       }
     }
   }
 
-  async sendApartment (chatId, apartment) {
-    let createdAt = new Date(apartment.list_time).toLocaleString('en-US')
-
+  async sendItem (chatId, item) {
+    let createdAt = new Date(item.list_time).toLocaleString('en-US')
     let message = ''
-    let priceBYN = (parseInt(apartment.price_byn) / 100).toFixed(2)
-    let priceUSD = (parseInt(apartment.price_usd) / 100).toFixed(2)
+
+    const priceBYN = (parseInt(item.price_byn) / 100).toFixed(2)
+    const priceUSD = (parseInt(item.price_usd) / 100).toFixed(2)
+
+    if (item.subject) {
+      message += '<b>' + item.subject + '</b>\n\n'
+    }
 
     message += `💵 $${priceUSD}, или ${priceBYN} руб.\n`
-    message += `🚪 Комнаты: ${apartment.rooms}\n`
+    if (item.rooms) {
+      message += `🚪 Комнаты: ${item.rooms}\n`
+    }
     message += `🌟 ${createdAt}\n\n`
 
-    message += `👤 ${apartment.name}` + (apartment.company_ad ? `⚠️ Агент\n` : `\n`)
-    message += !apartment.phone ? '📵 Телефон не указан\n' :
-      apartment.phone.split(',\n').map(phone => {
+    message += `👤 ${item.name}` +
+      (item.company_ad ? `⚠️ Агент\n` : `\n`)
+    message += !item.phone ? '📵 Телефон не указан\n' :
+      item.phone.split(',\n').map(phone => {
         var formattedPhone = phone.replace(
           /(375)(29|25|33|44)(\d{3})(\d{2})(\d{2})/,
-          '+$1 ($2) $3-$4-$5'
+          '+$1 ($2) $3-$4-$5',
         )
 
         return `📱 ${formattedPhone}`
       })
 
-    await this.bot.telegram.sendVenue(
-      chatId,
-      apartment.coordinates[1],
-      apartment.coordinates[0],
-      apartment.subject,
-      apartment.address,
-      {
-        disable_notification: true
-      }
-    );
+    const replyMarkup = JSON.stringify({
+      inline_keyboard: [
+        [{ text: 'View', url: item.ad_link }],
+      ],
+    })
 
-    const stepSize = 10
-    for (let i = 0; i < Math.ceil(apartment.images.length / stepSize); i++) {
-      let images = apartment.images.slice(i * stepSize, i * stepSize + stepSize)
-      try {
-        await this.bot.telegram.sendMediaGroup(
-          chatId,
-          images.map(img => {
-            const type = img.id.slice(0, 2)
-            const name = img.id + '.jpg'
-            return {
-              type: 'photo',
-              media: 'https://yams.kufar.by/api/v1/kufar-ads/images/' + type +
-                '/' + name + '?rule=gallery'
-            }
-          }),
-          {
-            disable_notification: true
-          }
-        )
-      } catch (e) {
-        console.log('We cannot sent the image group for aparment:', apartment)
-      }
-    }
+    if (item.images && item.images.length) {
+      const imageObj = item.images[0]
+      const type = imageObj.id.slice(0, 2)
+      const name = imageObj.id + '.jpg'
+      const imageUrl = 'https://yams.kufar.by/api/v1/kufar-ads/images/' + type +
+        '/' + name + '?rule=gallery'
 
-    await this.bot.telegram.sendMessage(
-      chatId,
-      message,
-      {
+      await this.bot.telegram.sendPhoto(chatId, imageUrl, {
+        caption: message,
+        parse_mode: 'HTML',
         reply_markup: JSON.stringify({
           inline_keyboard: [
-            [{ text: 'View', url: apartment.ad_link }],
+            [{ text: 'View', url: item.ad_link }],
           ],
-        })
-      }
-    );
+        }),
+      })
+    } else {
+      await this.bot.telegram.sendMessage(
+        chatId,
+        message,
+        {
+          parse_mode: 'HTML',
+          reply_markup: replyMarkup,
+        },
+      )
+    }
   }
 
-  static formatRentType (rentType) {
-    return rentType === 'room' ? 'Комната' : 'Комнаты: ' + rentType.split('_')[0];
-  }
-
-  async fetchApartments (url) {
+  async fetchItems (url) {
     const API_URL = 'https://re.kufar.by/api/search/ads-search/v1/engine/v1/search/raw?'
 
     const paramsString = url.slice(url.indexOf('?') + 1)
     const searchParams = new URLSearchParams(paramsString)
     const paramsMap = await ParametersMapResolver(url)
-    const paramsToKeep = ['size', 'sort', 'cursor'].concat(Object.keys(paramsMap))
+    const paramsToKeep = ['size', 'sort', 'cursor'].concat(
+      Object.keys(paramsMap))
     const paramsToDelete = []
 
-    for(var key of searchParams.keys()) {
+    for (var key of searchParams.keys()) {
       if (paramsToKeep.indexOf(key) < 0) {
         paramsToDelete.push(key)
       }
@@ -197,7 +187,7 @@ class Sender {
 
     paramsToDelete.forEach(param => searchParams.delete(param))
 
-    searchParams.set('size', 200);
+    searchParams.set('size', 200)
 
     try {
       // @todo support pagination
@@ -209,7 +199,7 @@ class Sender {
       return result.ads || []
 
     } catch (e) {
-      console.error('Can\'t get the apartments by the url = ' + url, e)
+      console.error('Can\'t get the items by the url = ' + url, e)
 
       return []
     }
@@ -245,18 +235,18 @@ class Sender {
         }
 
         // pipe the response into the gunzip to decompress
-        const gunzip = zlib.createGunzip();
-        res.pipe(gunzip);
+        const gunzip = zlib.createGunzip()
+        res.pipe(gunzip)
 
         let buffer = []
-        gunzip.on('data', function(data) {
+        gunzip.on('data', function (data) {
           // decompression chunk ready, add it to the buffer
           buffer.push(data.toString())
-        }).on("end", function() {
+        }).on('end', function () {
           // response and decompression complete, join the buffer and return
-          resolve(JSON.parse(buffer.join("")));
-        }).on("error", function(e) {
-          reject(new Error(e));
+          resolve(JSON.parse(buffer.join('')))
+        }).on('error', function (e) {
+          reject(new Error(e))
         })
       }).on('error', err => reject(new Error(err))),
     )
@@ -267,7 +257,7 @@ const sender = new Sender(
   process.env.BOT_TOKEN,
   process.env.MONGO_URI,
   process.env.SESSIONS_COLLECTION,
-  process.env.APARTMENTS_COLLECTION,
+  process.env.ITEMS_COLLECTION,
   process.env.SCHEDULE,
 )
 
