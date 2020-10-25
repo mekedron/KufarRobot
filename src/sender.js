@@ -203,7 +203,11 @@ class Sender {
       }
     }
 
-    Object.keys(query).forEach(param => {
+    if (!query) {
+      console.warn("CHECK THIS URL: ", url, API_URL + searchParams.toString());
+    }
+
+    Object.keys(query || {}).forEach(param => {
       searchParams.append(param, query[param]);
     });
 
