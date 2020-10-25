@@ -65,7 +65,16 @@ class Sender {
     }
 
     let chatId = user.key.split(':')[0]
-    let items = await this.fetchItems(user.data.url)
+    let items = [];
+
+    try {
+      items = await this.fetchItems(user.data.url)
+    } catch (e) {
+      console.error(
+        'An error has occurred for user with key "' + user.key + '".',
+        e
+      );
+    }
 
     if (!items.length) {
       return
@@ -80,15 +89,15 @@ class Sender {
         kufar_id: item.kufar_id,
       })
 
-      item.has_sent_to = existingItem
-        ? existingItem.has_sent_to
-        : {}
+      // item.has_sent_to = existingItem
+      //   ? existingItem.has_sent_to
+      //   : {}
 
-      if (item.has_sent_to[chatId]) {
-        continue
-      } else {
-        item.has_sent_to[chatId] = 1
-      }
+      // if (item.has_sent_to[chatId]) {
+        // continue
+      // } else {
+        // item.has_sent_to[chatId] = 1
+      // }
 
       this.sendItem(chatId, item)
       .then(() => {
@@ -118,6 +127,11 @@ class Sender {
     const priceBYN = (parseInt(item.price_byn) / 100).toFixed(2)
     const priceUSD = (parseInt(item.price_usd) / 100).toFixed(2)
 
+    const accountParams = (item.account_parameters || []).reduce((carry, item) => {
+      carry[item.p] = item.v;
+      return carry;
+    }, {})
+
     if (item.subject) {
       message += '<b>' + item.subject + '</b>\n\n'
     }
@@ -128,17 +142,18 @@ class Sender {
     }
     message += `🌟 ${createdAt}\n\n`
 
-    message += `👤 ${item.name}` +
+    message += `👤 ${accountParams.contact_person || accountParams.name || 'Без имени'}` +
       (item.company_ad ? ` ⚠️ Агент\n` : `\n`)
-    message += !item.phone ? '📵 Телефон не указан\n' :
-      item.phone.split(',\n').map(phone => {
-        var formattedPhone = phone.replace(
+    message += !item.phone
+      ? '📵 Телефон не указан\n'
+      : item.phone.split(',').map(phone => {
+        var formattedPhone = phone.trim().replace(
           /(375)(29|25|33|44)(\d{3})(\d{2})(\d{2})/,
           '+$1 ($2) $3-$4-$5',
         )
 
         return `📱 ${formattedPhone}`
-      })
+      }).join('\n')
 
     const replyMarkup = JSON.stringify({
       inline_keyboard: [
@@ -175,20 +190,22 @@ class Sender {
   }
 
   async fetchItems (url) {
-    const API_URL = 'https://re.kufar.by/api/search/ads-search/v1/engine/v1/search/raw?'
+    const API_URL = 'https://cre-api.kufar.by/ads-search/v1/engine/v1/search/rendered-paginated?'
 
     const paramsString = url.slice(url.indexOf('?') + 1)
     const searchParams = new URLSearchParams(paramsString)
-    const paramsMap = await ParametersMapResolver(url)
-    const paramsToKeep = ['size', 'sort', 'cursor'].concat(
-      Object.keys(paramsMap))
+    const { paramsMap, query } = await ParametersMapResolver(url)
+    const paramsToKeep = ['size', 'sort', 'cursor'].concat(Object.keys(paramsMap))
     const paramsToDelete = []
-
     for (var key of searchParams.keys()) {
       if (paramsToKeep.indexOf(key) < 0) {
         paramsToDelete.push(key)
       }
     }
+
+    Object.keys(query).forEach(param => {
+      searchParams.append(param, query[param]);
+    });
 
     paramsToDelete.forEach(param => searchParams.delete(param))
 
@@ -199,6 +216,9 @@ class Sender {
       let result = await this.callAPI(
         API_URL + searchParams.toString(), {
           referer: url,
+          referrerPolicy: "strict-origin-when-cross-origin",
+          method: "GET",
+          mode: "cors",
         })
 
       return result.ads || []
@@ -213,18 +233,27 @@ class Sender {
   async callAPI (url, options) {
     let requestOptions = Object.assign({
       headers: {
-        'Accept': 'application/json, text/plain, */*',
-        'Connection': 'keep-alive',
-        'Pragma': 'no-cache',
-        'Cache-Control': 'no-cache',
-        'Upgrade-Insecure-Requests': '1',
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.132 Safari/537.36',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-User': '"?1',
-        'DNT': '1',
-        'Sec-Fetch-Site': 'none',
-        'Accept-Encoding': 'deflate, br',
-        'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
+        "accept": "*/*",
+        "accept-language": "en-US,en;q=0.9,ru;q=0.8,fr;q=0.7,de;q=0.6",
+        "cache-control": "no-cache",
+        "content-type": "application/json",
+        "pragma": "no-cache",
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-site",
+        "x-segmentation": "routing=web_re;platform=web;application=ad_view"
+        // 'Accept': 'application/json, text/plain, */*',
+        // 'Connection': 'keep-alive',
+        // 'Pragma': 'no-cache',
+        // 'Cache-Control': 'no-cache',
+        // 'Upgrade-Insecure-Requests': '1',
+        // 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.132 Safari/537.36',
+        // 'Sec-Fetch-Mode': 'navigate',
+        // 'Sec-Fetch-User': '"?1',
+        // 'DNT': '1',
+        // 'Sec-Fetch-Site': 'none',
+        // 'Accept-Encoding': 'deflate, br',
+        // 'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
       },
     }, options)
 
@@ -239,12 +268,27 @@ class Sender {
           ))
         }
 
+        // const handleResponse = (res, resolve, reject) => {
+        //   let buffer = [];
+        //   return (() => {
+        //     res.on('data', function (data) {
+        //       // decompression chunk ready, add it to the buffer
+        //       buffer.push(data.toString())
+        //     }).on('end', function () {
+        //       // response and decompression complete, join the buffer and return
+        //       resolve(JSON.parse(buffer.join('')))
+        //     }).on('error', function (e) {
+        //       reject(new Error(e))
+        //     })
+        //   })();
+        // };
+
         // pipe the response into the gunzip to decompress
         const gunzip = zlib.createGunzip()
-        res.pipe(gunzip)
+        // res.pipe(gunzip)
 
         let buffer = []
-        gunzip.on('data', function (data) {
+        res.on('data', function (data) {
           // decompression chunk ready, add it to the buffer
           buffer.push(data.toString())
         }).on('end', function () {

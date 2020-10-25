@@ -31,11 +31,17 @@ async function fetchPage (url) {
     url,
     requestOptions,
     (res) => {
+      if (res.statusCode === 301) {
+        const matches = url.match(/^https?:\/\/[^\/]+/i);
+
+        return resolve(fetchPage(matches[0] + res.headers.location));
+      }
+
       if (res.statusCode !== 200) {
         return reject(new Error(
           'Cannot fetch filter map. Status code is not 200, response is: ' +
           JSON.stringify(res.rawHeaders),
-        ))
+        ));
       }
 
       // pipe the response into the gunzip to decompress
@@ -91,7 +97,7 @@ function buildFiltersMaps (appConfig) {
     let ref = refs[key]
     carry[ref.url_name] = ref.name
     return carry
-  }, [])
+  }, {})
 }
 
 function extractParamsMap (appConfig) {
@@ -102,6 +108,10 @@ function extractParamsMap (appConfig) {
   }
 
   return buildFiltersMaps(appConfig)
+}
+
+function extractQuery (appConfig) {
+  return appConfig.props.initialState.router.query
 }
 
 async function resolve (url) {
@@ -116,15 +126,17 @@ async function resolve (url) {
   const pageHtml = await fetchPage(url)
   const appConfig = extractAppConfig(pageHtml)
 
-  result = extractParamsMap(appConfig)
+  result = {
+    paramsMap: extractParamsMap(appConfig),
+    query: extractQuery(appConfig),
+  };
 
-  if (!appConfig || !result) {
-    console.error(
+  if (!appConfig) {
+    throw new Error(
       'We cannot extract app config from the page with url and content: ',
       url,
       pageHtml,
     )
-    return defaultParamsMap
   }
 
   await setCached(result)
