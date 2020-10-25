@@ -111,7 +111,7 @@ function extractParamsMap (appConfig) {
 }
 
 function extractQuery (appConfig) {
-  return appConfig.props.initialState.router.query
+  return appConfig.query || appConfig.props.initialState.router.query
 }
 
 async function resolve (url) {

@@ -197,7 +197,13 @@ class Sender {
     const paramsString = url.slice(url.indexOf('?') + 1)
     const searchParams = new URLSearchParams(paramsString)
     const { paramsMap, query } = await ParametersMapResolver(url)
-    const paramsToKeep = ['size', 'sort', 'cursor'].concat(Object.keys(paramsMap))
+    const paramsToKeep = [
+      'size',
+      'sort',
+      'cursor',
+      'query',
+      'ot'
+    ].concat(Object.keys(paramsMap))
     const paramsToDelete = []
     for (var key of searchParams.keys()) {
       if (paramsToKeep.indexOf(key) < 0) {
