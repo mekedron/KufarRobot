@@ -90,7 +90,7 @@ class Sender {
       })
 
       item.has_sent_to = existingItem
-        ? existingItem.has_sent_to
+        ? (existingItem.has_sent_to || {})
         : {}
 
       if (item.has_sent_to[chatId]) {
