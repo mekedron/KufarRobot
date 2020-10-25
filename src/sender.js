@@ -165,8 +165,10 @@ class Sender {
       const imageObj = item.images[0]
       const type = imageObj.id.slice(0, 2)
       const name = imageObj.id + '.jpg'
-      const imageUrl = 'https://yams.kufar.by/api/v1/kufar-ads/images/' + type +
-        '/' + name + '?rule=gallery'
+      const isYams = imageObj.yams_storage || false;
+      const imageUrl = isYams
+        ? 'https://yams.kufar.by/api/v1/kufar-ads/images/' + type + '/' + name + '?rule=gallery'
+        : 'https://cache1.kufar.by/gallery/' + type.slice(0, 2) + '/' + name
 
       await this.bot.telegram.sendPhoto(chatId, imageUrl, {
         caption: message,
