@@ -89,15 +89,15 @@ class Sender {
         kufar_id: item.kufar_id,
       })
 
-      // item.has_sent_to = existingItem
-      //   ? existingItem.has_sent_to
-      //   : {}
+      item.has_sent_to = existingItem
+        ? existingItem.has_sent_to
+        : {}
 
-      // if (item.has_sent_to[chatId]) {
-        // continue
-      // } else {
-        // item.has_sent_to[chatId] = 1
-      // }
+      if (item.has_sent_to[chatId]) {
+        continue
+      } else {
+        item.has_sent_to[chatId] = 1
+      }
 
       this.sendItem(chatId, item)
       .then(() => {
