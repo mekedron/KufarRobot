@@ -32,13 +32,32 @@ bot.hears(/https:\/\/(\w+)\.kufar\.by\//ig, (ctx) => {
 })
 
 MongoClient.connect(process.env.MONGO_URI, { useNewUrlParser: true }).
-  then((client) => {
+  then(async (client) => {
     const db = client.db()
     const mongoSession = new TelegrafMongoSession(db, {
       collectionName: process.env.SESSIONS_COLLECTION,
     })
 
     session.middleware = mongoSession.middleware.bind(mongoSession)
-    bot.launch()
+
+    try {
+      await bot.launch()
+    } catch (e) {
+      console.error(e);
+
+      if (e.message.indexOf('socket hang up' > -1)) {
+        process.abort();
+      }
+    }
   }).
   catch(console.error)
+
+bot.catch((e) => {
+  if (e.message.indexOf('socket hang up' > -1)) {
+    return process.abort();
+  }
+  throw e;
+})
+
+process.once('SIGINT', () => bot.stop('SIGINT'))
+process.once('SIGTERM', () => bot.stop('SIGTERM'))
