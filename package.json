@@ -6,10 +6,9 @@
   "dependencies": {
     "mongodb": "^3.2.4",
     "node-cron": "^2.0.3",
-    "telegraf": "^3.32.0",
+    "telegraf": "^3.39.0",
     "telegraf-session-mongodb": "^1.1.1"
   },
-  "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node src/index.js",
